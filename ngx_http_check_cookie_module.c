@@ -4,6 +4,8 @@
 	if ($cookie_result_var ~ ^$) {
 		...
 	}
+
+ * Format:
 	Cookie = MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID
  */
 #include <ngx_config.h>
