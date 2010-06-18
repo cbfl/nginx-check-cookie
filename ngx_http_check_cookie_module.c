@@ -1,5 +1,4 @@
 /*
- * (C) 2009
  * Usage:
 	check_cookie "cookie_name" "secret_key/password" "timeout_in_sec" $cookie_result_var;
 	if ($cookie_result_var ~ ^$) {
