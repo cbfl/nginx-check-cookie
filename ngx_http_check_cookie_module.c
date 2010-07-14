@@ -1,7 +1,7 @@
 /*
  * (C) 2009
  * Usage:
-	check_cookie "cookie_name" "secret_key/password" "x-header" "x-header-token" "timeout_in_sec" $cookie_result_var;
+	check_cookie "cookie_name" "secret_key/password" "x-header" "timeout_in_sec" $cookie_result_var;
 	if ($cookie_result_var ~ ^$) {
 		...
 	}
@@ -37,7 +37,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 static ngx_command_t ngx_http_check_cookie_commands[] = {
 	{
 		ngx_string("check_cookie"),
-		NGX_HTTP_SRV_CONF|NGX_HTTP_SIF_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE6,
+		NGX_HTTP_SRV_CONF|NGX_HTTP_SIF_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE5,
 		ngx_http_check_cookie_init,
 		0,
 		0,
@@ -72,15 +72,15 @@ static char * ngx_http_check_cookie_init(ngx_conf_t *cf, ngx_command_t *cmd, voi
 	check_cookie_vars = cf->args->elts;
 
 	/* TODO some more validations & checks */
-	if (check_cookie_vars[6].data[0] != '$') {
-		ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: invalid parameter: \"%s\"", check_cookie_vars[6].data);
+	if (check_cookie_vars[5].data[0] != '$') {
+		ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: invalid parameter: \"%s\"", check_cookie_vars[5].data);
 		return NGX_CONF_ERROR;
 	}
-	check_cookie_vars[6].len--;
-	check_cookie_vars[6].data++;
-	vMD5Variable = ngx_http_add_variable(cf, &check_cookie_vars[6], NGX_HTTP_VAR_CHANGEABLE);
+	check_cookie_vars[5].len--;
+	check_cookie_vars[5].data++;
+	vMD5Variable = ngx_http_add_variable(cf, &check_cookie_vars[5], NGX_HTTP_VAR_CHANGEABLE);
 	if (vMD5Variable == NULL) {
-		ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: cannot add variable: \"%s\"", check_cookie_vars[6].data);
+		ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: cannot add variable: \"%s\"", check_cookie_vars[5].data);
 		return NGX_CONF_ERROR;
 	}
 	if (vMD5Variable->get_handler == NULL ) {
@@ -117,15 +117,7 @@ static char * ngx_http_check_cookie_init(ngx_conf_t *cf, ngx_command_t *cmd, voi
 		}
 		ngx_cpystrn(check_cookie_conf->x_header.data, check_cookie_vars[3].data, check_cookie_vars[3].len + 1);
 		
-		check_cookie_conf->x_header_token.len = check_cookie_vars[4].len;
-		check_cookie_conf->x_header_token.data = ngx_palloc(cf->pool, check_cookie_vars[4].len + 1);
-		if (check_cookie_conf->x_header_token.data == NULL) {
-			ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: allocation failed");
-			return NGX_CONF_ERROR;
-		}
-		ngx_cpystrn(check_cookie_conf->x_header_token.data, check_cookie_vars[4].data, check_cookie_vars[4].len + 1);
-		
-		check_cookie_conf->timeout = ngx_atoi(check_cookie_vars[5].data, check_cookie_vars[5].len);
+		check_cookie_conf->timeout = ngx_atoi(check_cookie_vars[4].data, check_cookie_vars[4].len);
 		if (check_cookie_conf->timeout == NGX_ERROR || check_cookie_conf->timeout < 0) {
 			ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: invalid timeout - must be integer >= 0");
 			return NGX_CONF_ERROR;
@@ -191,7 +183,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	/* check for trusted proxy */
 	ngx_list_part_t *part;
 	ngx_table_elt_t *header;
-	ngx_uint_t j, w;
+	ngx_uint_t j;
 	
     part = &r->headers_in.headers.part;
     header = part->elts;
@@ -204,16 +196,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
             j = 0;
         }
 		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
-			if (ngx_strncmp(header[j].value.data, check_cookie_conf->x_header_token.data, check_cookie_conf->x_header_token.len) == 0) {
-				if (r->headers_in.x_forwarded_for != NULL){
-					remote_addr.data = ngx_palloc(r->pool, 16); //IPv4 maxlen + term
-					for (w = 0; w < r->headers_in.x_forwarded_for->value.len; w++) {
-						if(r->headers_in.x_forwarded_for->value.data[w] == ',' || w > 15) break;
-						remote_addr.data[w] = r->headers_in.x_forwarded_for->value.data[w];
-					}
-					remote_addr.len = w;
-				}
-			}
+			remote_addr = header[j].value;
 		}
     }
 	if(remote_addr.len == 0)  remote_addr = r->connection->addr_text;
@@ -255,5 +238,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	v->valid = 1;
 	v->no_cacheable = 0;
 	v->not_found = 0;
+	ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "debug: Authorized OK - %s, MD5: %s", raw_data, hash_txt);
 	return NGX_OK;
 }
