@@ -196,7 +196,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
             j = 0;
         }
 		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
- ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "DEBUG IP:  '%s'",header[j].value.data);
 			remote_addr = header[j].value;
                         break;
 		}
