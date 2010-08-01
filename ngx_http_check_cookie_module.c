@@ -203,8 +203,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	if(remote_addr.len == 0)  remote_addr = r->connection->addr_text;
 	remote_addr.data[remote_addr.len] = '\0';
 
- ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "DEBUG IP:  '%s'",remote_addr.data);
-
 	/* Create MD5 signature */
 	size_t raw_data_len = remote_addr.len + 1 + check_cookie_conf->password.len + 1 + 10 + 1 + (cookie.len - (32 + 1 + 10 + 1)) + 1;
 	u_char* raw_data = ngx_palloc(r->pool, raw_data_len);
