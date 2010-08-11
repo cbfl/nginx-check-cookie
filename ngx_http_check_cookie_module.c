@@ -135,14 +135,14 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	v->valid = 0;
 	v->not_found = 1;
 	if (check_cookie_conf == NULL) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: runtime error \"data\" is NULL");
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: runtime error \"data\" is NULL");
 		return NGX_OK;
 	}
 
 	/* Check Cookie */
 	ngx_str_t cookie;
 	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &cookie) == NGX_DECLINED) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
 		return NGX_OK;
 	}
 
@@ -151,7 +151,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 	if (cookie.data[32] != '-' || cookie.data[43] != '-') {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
 		return NGX_OK;
 	}
 	/* unescape cookie value */
@@ -171,13 +171,13 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	u_char* cookie_time_text = cookie.data + (32 + 1);
 	time_t cookie_time = ngx_atotm(cookie_time_text, 10);
 	if (cookie_time == NGX_ERROR) {
-		 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: invalid timestamp in cookie");
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid timestamp in cookie");
 		return NGX_OK;
 	}
 	time_t local_time = time(NULL);
 
 	if (local_time - cookie_time > check_cookie_conf->timeout) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: Expired %i", local_time - cookie_time);
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: Expired %i", local_time - cookie_time);
 		return NGX_OK;
 	}
 
@@ -206,7 +206,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		}
 		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
 			remote_addr = header[j].value;
-						break;
+			break;
 		}
 	}
 	if(remote_addr.len == 0)  remote_addr = r->connection->addr_text;
@@ -239,7 +239,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	*text = '\0';
 
 	if (ngx_strncmp(hash_txt, cookie.data, 32) != 0) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: MD5 dont match: %s <> %s", hash_txt, cookie.data);
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: MD5 dont match: %s <> %s", hash_txt, cookie.data);
 		return NGX_OK;
 	}
 
@@ -248,6 +248,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	v->valid = 1;
 	v->no_cacheable = 0;
 	v->not_found = 0;
-	ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "debug: Authorized OK - %s, MD5: %s", raw_data, hash_txt);
+	ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: Authorized OK - %s, MD5: %s", raw_data, hash_txt);
 	return NGX_OK;
 }
