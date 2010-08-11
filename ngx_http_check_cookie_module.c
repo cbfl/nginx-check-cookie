@@ -18,17 +18,17 @@
 #endif
 
 #if (NGX_OPENSSL_MD5)
-#define  MD5Init    MD5_Init
+#define  MD5Init	MD5_Init
 #define  MD5Update  MD5_Update
 #define  MD5Final   MD5_Final
 #endif
 
 typedef struct {
-	ngx_str_t     name;
-	ngx_str_t     password;
-	ngx_str_t     x_header;
-	ngx_str_t     x_header_token;
-	ngx_int_t     timeout;
+	ngx_str_t	 name;
+	ngx_str_t	 password;
+	ngx_str_t	 x_header;
+	ngx_str_t	 x_header_token;
+	ngx_int_t	 timeout;
 } ngx_http_check_cookie_conf_t;
 
 /* Variable handlers */
@@ -87,11 +87,11 @@ static char * ngx_http_check_cookie_init(ngx_conf_t *cf, ngx_command_t *cmd, voi
 		vMD5Variable->get_handler = ngx_http_check_cookie_variable;
  
 		ngx_http_check_cookie_conf_t  *check_cookie_conf;
-	    check_cookie_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_check_cookie_conf_t));
-	    if (check_cookie_conf == NULL) {
+		check_cookie_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_check_cookie_conf_t));
+		if (check_cookie_conf == NULL) {
 			ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "check_cookie_module: allocation failed");
 			return NGX_CONF_ERROR;
-	    }
+		}
 
 		check_cookie_conf->name.len = check_cookie_vars[1].len;
 		check_cookie_conf->name.data = ngx_palloc(cf->pool, check_cookie_vars[1].len + 1);
@@ -133,7 +133,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 
 	/* Reset variable */
 	v->valid = 0;
-    v->not_found = 1;
+	v->not_found = 1;
 	if (check_cookie_conf == NULL) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: runtime error \"data\" is NULL");
 		return NGX_OK;
@@ -154,9 +154,18 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
 		return NGX_OK;
 	}
-	//[cbfl] wtf?
+	/* unescape cookie value */
+	u_char *dst, *src;
+	size_t len;
+	dst = cookie.data;
+	src = cookie.data;
+	ngx_unescape_uri(&dst, &src, cookie.len,  NGX_UNESCAPE_URI);
+	len = (cookie.data + cookie.len) - src;
+	if (len) {
+		dst = ngx_copy(dst, src, len);
+	}
+	cookie.len = dst - cookie.data;
 	cookie.data[cookie.len] = '\0';
-	
 
 	/* Check Time/Timeout */
 	u_char* cookie_time_text = cookie.data + (32 + 1);
@@ -185,21 +194,21 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	ngx_table_elt_t *header;
 	ngx_uint_t j;
 	
-    part = &r->headers_in.headers.part;
-    header = part->elts;
+	part = &r->headers_in.headers.part;
+	header = part->elts;
 
-    for (j = 0; /* void */; j++) {
-        if (j >= part->nelts) {
-            if (part->next == NULL) break;
-            part = part->next;
-            header = part->elts;
-            j = 0;
-        }
+	for (j = 0; /* void */; j++) {
+		if (j >= part->nelts) {
+			if (part->next == NULL) break;
+			part = part->next;
+			header = part->elts;
+			j = 0;
+		}
 		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
 			remote_addr = header[j].value;
-                        break;
+						break;
 		}
-    }
+	}
 	if(remote_addr.len == 0)  remote_addr = r->connection->addr_text;
 	remote_addr.data[remote_addr.len] = '\0';
 
@@ -229,7 +238,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	}
 	*text = '\0';
 
-    if (ngx_strncmp(hash_txt, cookie.data, 32) != 0) {
+	if (ngx_strncmp(hash_txt, cookie.data, 32) != 0) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: MD5 dont match: %s <> %s", hash_txt, cookie.data);
 		return NGX_OK;
 	}
