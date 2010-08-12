@@ -8,7 +8,7 @@
 
 	* Cookie format:
 		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID )
- */
+*/
 #include <ngx_config.h>
 #include <ngx_core.h> 
 #include <ngx_http.h>
@@ -66,7 +66,6 @@ ngx_module_t ngx_http_check_cookie_module = {
 	NULL, /* exit master */
 	NGX_MODULE_V1_PADDING
 };
-
 
 static char * ngx_http_check_cookie_init(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
 	ngx_str_t *check_cookie_vars;
@@ -129,7 +128,6 @@ static char * ngx_http_check_cookie_init(ngx_conf_t *cf, ngx_command_t *cmd, voi
 	return NGX_CONF_OK;
 }
 
-
 static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data) {
 	ngx_http_check_cookie_conf_t  *check_cookie_conf = (ngx_http_check_cookie_conf_t *) data;
 
@@ -137,7 +135,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	v->valid = 0;
 	v->not_found = 1;
 	if (check_cookie_conf == NULL) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: runtime error \"data\" is NULL");
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: runtime error \"data\" is NULL");
 		return NGX_OK;
 	}
 
@@ -161,7 +159,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 	cookie.data[cookie.len] = '\0';
-	
+
 	if (cookie.len <  (32 + 1 + 10 + 1 + 1)) {
 		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie length: %i", cookie.len);
 		return NGX_OK;
@@ -170,7 +168,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
 		return NGX_OK;
 	}
-	
+
 	/* unescape cookie value */
 	/*
 	u_char *dst_cookie_data, *src_cookie_data;
@@ -185,6 +183,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	cookie.len = dst_cookie_data - cookie.data;
 	cookie.data[cookie.len] = '\0';
 	*/
+
 	/* Check Time/Timeout */
 	u_char* cookie_time_text = cookie.data + (32 + 1);
 	time_t cookie_time = ngx_atotm(cookie_time_text, 10);
@@ -202,8 +201,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	/* UID */
 	u_char* cookie_uid_text = cookie.data + (32 + 1 + 10 + 1);
 	/* ngx_int_t cookie_uid = ngx_atoi(cookie_uid_text, cookie.len - (32 + 1 + 10 + 1)); */
-		
-	
+
 	/* IP */
 	ngx_str_t remote_addr = ngx_string("");
 
@@ -211,10 +209,8 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	ngx_list_part_t *part;
 	ngx_table_elt_t *header;
 	ngx_uint_t j;
-	
 	part = &r->headers_in.headers.part;
 	header = part->elts;
-
 	for (j = 0; /* void */; j++) {
 		if (j >= part->nelts) {
 			if (part->next == NULL) break;
@@ -231,10 +227,10 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	remote_addr.data[remote_addr.len] = '\0';
 	
 	/* Remove last octet from ip  */
-	ngx_int_t  ip_dots;
-	for(ip_dots = remote_addr.len; ip_dots > 0  ; ip_dots--){
-		if (remote_addr.data[ip_dots] == '.') {
-			remote_addr.len = ip_dots;
+	ngx_int_t  ip_i;
+	for(ip_i = remote_addr.len - 1; ip_i > 0  ; ip_i--){
+		if (remote_addr.data[ip_i] == '.') {
+			remote_addr.len = ip_i;
 			break;
 		}
 	}
