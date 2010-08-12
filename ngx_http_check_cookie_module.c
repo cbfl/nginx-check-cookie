@@ -3,9 +3,11 @@
  * Usage:
 	check_cookie "cookie_name" "secret_key/password" "x-header" "timeout_in_sec" $cookie_result_var;
 	if ($cookie_result_var ~ ^$) {
-		...
+		NOT_AUTHORIZED
 	}
-	Cookie = MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID
+
+	* Cookie format:
+		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID )
  */
 #include <ngx_config.h>
 #include <ngx_core.h> 
@@ -140,21 +142,37 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	}
 
 	/* Check Cookie */
-	ngx_str_t cookie;
-	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &cookie) == NGX_DECLINED) {
+	ngx_str_t base64_encoded_cookie;
+	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &base64_encoded_cookie) == NGX_DECLINED) {
 		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
 		return NGX_OK;
 	}
 
+	/* Base64 decode cookie */
+	ngx_str_t cookie;
+	cookie.len = ngx_base64_decoded_length(base64_encoded_cookie.len);
+	cookie.data = ngx_pnalloc(r->pool, cookie.len + 1);
+	if (cookie.data == NULL) {
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cook	ie_module: allocation failed");
+		return NGX_OK;
+	}
+	if (ngx_decode_base64(&cookie, &base64_encoded_cookie) == NGX_ERROR) {
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid base64 encoded cookie");
+		return NGX_OK;
+	}
+	cookie.data[cookie.len] = '\0';
+	
 	if (cookie.len <  (32 + 1 + 10 + 1 + 1)) {
-		 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: invalid cookie length: %i", cookie.len);
+		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie length: %i", cookie.len);
 		return NGX_OK;
 	}
 	if (cookie.data[32] != '-' || cookie.data[43] != '-') {
 		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
 		return NGX_OK;
 	}
+	
 	/* unescape cookie value */
+	/*
 	u_char *dst_cookie_data, *src_cookie_data;
 	size_t len;
 	dst_cookie_data = cookie.data;
@@ -166,7 +184,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	}
 	cookie.len = dst_cookie_data - cookie.data;
 	cookie.data[cookie.len] = '\0';
-
+	*/
 	/* Check Time/Timeout */
 	u_char* cookie_time_text = cookie.data + (32 + 1);
 	time_t cookie_time = ngx_atotm(cookie_time_text, 10);
