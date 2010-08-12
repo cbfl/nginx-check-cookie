@@ -155,16 +155,16 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 	/* unescape cookie value */
-	u_char *dst, *src;
+	u_char *dst_cookie_data, *src_cookie_data;
 	size_t len;
-	dst = cookie.data;
-	src = cookie.data;
-	ngx_unescape_uri(&dst, &src, cookie.len,  NGX_UNESCAPE_URI);
-	len = (cookie.data + cookie.len) - src;
+	dst_cookie_data = cookie.data;
+	src_cookie_data = cookie.data;
+	ngx_unescape_uri(&dst_cookie_data, &src_cookie_data, cookie.len,  NGX_UNESCAPE_URI);
+	len = (cookie.data + cookie.len) - src_cookie_data;
 	if (len) {
-		dst = ngx_copy(dst, src, len);
+		dst_cookie_data = ngx_copy(dst_cookie_data, src_cookie_data, len);
 	}
-	cookie.len = dst - cookie.data;
+	cookie.len = dst_cookie_data - cookie.data;
 	cookie.data[cookie.len] = '\0';
 
 	/* Check Time/Timeout */
@@ -210,6 +210,16 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		}
 	}
 	if(remote_addr.len == 0)  remote_addr = r->connection->addr_text;
+	remote_addr.data[remote_addr.len] = '\0';
+	
+	/* Remove last octet from ip  */
+	ngx_int_t  ip_dots;
+	for(ip_dots = remote_addr.len; ip_dots > 0  ; ip_dots--){
+		if (remote_addr.data[ip_dots] == '.') {
+			remote_addr.len = ip_dots;
+			break;
+		}
+	}
 	remote_addr.data[remote_addr.len] = '\0';
 
 	/* Create MD5 signature */
