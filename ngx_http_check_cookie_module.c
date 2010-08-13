@@ -139,12 +139,28 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 
+
+
+
 	/* Check Cookie */
 	ngx_str_t base64_encoded_cookie;
 	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &base64_encoded_cookie) == NGX_DECLINED) {
 		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
 		return NGX_OK;
 	}
+
+	/* Unescape cookie */
+	u_char *dst_base64_encoded_cookie, *src_base64_encoded_cookie;
+	size_t len;
+	dst_base64_encoded_cookie = base64_encoded_cookie.data;
+	src_base64_encoded_cookie = base64_encoded_cookie.data;
+	ngx_unescape_uri(&dst_base64_encoded_cookie, &src_base64_encoded_cookie, base64_encoded_cookie.len,  NGX_UNESCAPE_URI);
+	len = (base64_encoded_cookie.data + base64_encoded_cookie.len) - src_base64_encoded_cookie;
+	if (len) {
+		dst_base64_encoded_cookie = ngx_copy(dst_base64_encoded_cookie, src_base64_encoded_cookie, len);
+	}
+	base64_encoded_cookie.len = dst_base64_encoded_cookie - base64_encoded_cookie.data;
+	base64_encoded_cookie.data[base64_encoded_cookie.len] = '\0';
 
 	/* Base64 decode cookie */
 	ngx_str_t cookie;
@@ -168,21 +184,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
 		return NGX_OK;
 	}
-
-	/* unescape cookie value */
-	/*
-	u_char *dst_cookie_data, *src_cookie_data;
-	size_t len;
-	dst_cookie_data = cookie.data;
-	src_cookie_data = cookie.data;
-	ngx_unescape_uri(&dst_cookie_data, &src_cookie_data, cookie.len,  NGX_UNESCAPE_URI);
-	len = (cookie.data + cookie.len) - src_cookie_data;
-	if (len) {
-		dst_cookie_data = ngx_copy(dst_cookie_data, src_cookie_data, len);
-	}
-	cookie.len = dst_cookie_data - cookie.data;
-	cookie.data[cookie.len] = '\0';
-	*/
 
 	/* Check Time/Timeout */
 	u_char* cookie_time_text = cookie.data + (32 + 1);
