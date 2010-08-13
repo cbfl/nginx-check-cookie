@@ -151,13 +151,13 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 
 	/* Unescape cookie */
 	u_char *dst_base64_encoded_cookie, *src_base64_encoded_cookie;
-	size_t len;
+	size_t unescape_len;
 	dst_base64_encoded_cookie = base64_encoded_cookie.data;
 	src_base64_encoded_cookie = base64_encoded_cookie.data;
 	ngx_unescape_uri(&dst_base64_encoded_cookie, &src_base64_encoded_cookie, base64_encoded_cookie.len,  NGX_UNESCAPE_URI);
-	len = (base64_encoded_cookie.data + base64_encoded_cookie.len) - src_base64_encoded_cookie;
-	if (len) {
-		dst_base64_encoded_cookie = ngx_copy(dst_base64_encoded_cookie, src_base64_encoded_cookie, len);
+	unescape_len = (base64_encoded_cookie.data + base64_encoded_cookie.len) - src_base64_encoded_cookie;
+	if (unescape_len) {
+		dst_base64_encoded_cookie = ngx_copy(dst_base64_encoded_cookie, src_base64_encoded_cookie, unescape_len);
 	}
 	base64_encoded_cookie.len = dst_base64_encoded_cookie - base64_encoded_cookie.data;
 	base64_encoded_cookie.data[base64_encoded_cookie.len] = '\0';
@@ -204,7 +204,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	/* ngx_int_t cookie_uid = ngx_atoi(cookie_uid_text, cookie.len - (32 + 1 + 10 + 1)); */
 
 	/* IP */
-	ngx_str_t remote_addr = ngx_string("");
+	ngx_str_t client_ip_addr = ngx_string("");
 
 	/* check for trusted proxy */
 	ngx_list_part_t *part;
@@ -220,32 +220,40 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 			j = 0;
 		}
 		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
-			remote_addr = header[j].value;
+			client_ip_addr = header[j].value;
 			break;
 		}
 	}
-	if(remote_addr.len == 0)  remote_addr = r->connection->addr_text;
-	remote_addr.data[remote_addr.len] = '\0';
-	
+	if(client_ip_addr.len == 0){
+		client_ip_addr.data = ngx_pnalloc(r->pool, r->connection->addr_text.len + 1);
+		if (client_ip_addr.data == NULL) {
+			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
+			return NGX_OK;
+		}
+		ngx_cpystrn(client_ip_addr.data, r->connection->addr_text.data, r->connection->addr_text.len);
+		client_ip_addr.len = r->connection->addr_text.len;
+	}
+	client_ip_addr.data[client_ip_addr.len] = '\0';
+
 	/* Remove last octet from ip  */
 	ngx_int_t  ip_i;
-	for(ip_i = remote_addr.len - 1; ip_i > 0  ; ip_i--){
-		if (remote_addr.data[ip_i] == '.') {
-			remote_addr.len = ip_i;
+	for(ip_i = client_ip_addr.len - 1; ip_i > 0  ; ip_i--){
+		if (client_ip_addr.data[ip_i] == '.') {
+			client_ip_addr.len = ip_i;
 			break;
 		}
 	}
-	remote_addr.data[remote_addr.len] = '\0';
+	client_ip_addr.data[client_ip_addr.len] = '\0';
 
 	/* Create MD5 signature */
-	size_t raw_data_len = remote_addr.len + 1 + check_cookie_conf->password.len + 1 + 10 + 1 + (cookie.len - (32 + 1 + 10 + 1)) + 1;
+	size_t raw_data_len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + 10 + 1 + (cookie.len - (32 + 1 + 10 + 1)) + 1;
 	u_char* raw_data = ngx_palloc(r->pool, raw_data_len);
 	if (raw_data == NULL) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation error - raw_data");
 		return NGX_OK;
 	}
 
-	ngx_snprintf(raw_data, raw_data_len, "%s-%s-%T-%s", remote_addr.data, check_cookie_conf->password.data, cookie_time, cookie_uid_text);
+	ngx_snprintf(raw_data, raw_data_len, "%s-%s-%T-%s", client_ip_addr.data, check_cookie_conf->password.data, cookie_time, cookie_uid_text);
 	raw_data[raw_data_len] = '\0';
 
 	/* MD5 */
