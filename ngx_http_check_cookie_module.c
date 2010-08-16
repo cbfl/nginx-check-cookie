@@ -220,7 +220,13 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 			j = 0;
 		}
 		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
-			client_ip_addr = header[j].value;
+			client_ip_addr.data = ngx_pnalloc(r->pool, header[j].value.len + 1);
+			if (client_ip_addr.data == NULL) {
+				ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
+				return NGX_OK;
+			}
+			ngx_cpystrn(client_ip_addr.data, header[j].value.data, header[j].value.len);
+			client_ip_addr.len = header[j].value.len;
 			break;
 		}
 	}
