@@ -227,6 +227,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 			}
 			ngx_cpystrn(client_ip_addr.data, header[j].value.data, header[j].value.len);
 			client_ip_addr.len = header[j].value.len;
+			client_ip_addr.data[client_ip_addr.len] = '\0';
 			break;
 		}
 	}
@@ -238,8 +239,8 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		}
 		ngx_cpystrn(client_ip_addr.data, r->connection->addr_text.data, r->connection->addr_text.len);
 		client_ip_addr.len = r->connection->addr_text.len;
+		client_ip_addr.data[client_ip_addr.len] = '\0';
 	}
-	client_ip_addr.data[client_ip_addr.len] = '\0';
 
 	/* Remove last octet from ip  */
 	ngx_int_t  ip_i;
