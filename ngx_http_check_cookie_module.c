@@ -7,7 +7,7 @@
 	}
 
 	* Cookie format:
-		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID )
+		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID (- REMOTE_ADDR)? )
 */
 #include <ngx_config.h>
 #include <ngx_core.h> 
@@ -139,13 +139,10 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 
-
-
-
 	/* Check Cookie */
 	ngx_str_t base64_encoded_cookie;
 	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &base64_encoded_cookie) == NGX_DECLINED) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
 		return NGX_OK;
 	}
 
@@ -171,37 +168,64 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 	if (ngx_decode_base64(&cookie, &base64_encoded_cookie) == NGX_ERROR) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid base64 encoded cookie");
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: invalid base64 encoded cookie");
 		return NGX_OK;
 	}
 	cookie.data[cookie.len] = '\0';
 
 	if (cookie.len <  (32 + 1 + 10 + 1 + 1)) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie length: %i", cookie.len);
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: invalid cookie length: %i", cookie.len);
 		return NGX_OK;
 	}
 	if (cookie.data[32] != '-' || cookie.data[43] != '-') {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
+		return NGX_OK;
+	}
+	
+
+/* Check Time/Timeout */
+	ngx_str_t cookie_time_text = ngx_string("");
+	cookie_time_text.len = 10; //Timestamp
+	cookie_time_text.data = ngx_pnalloc(r->pool, cookie_time_text.len + 1);
+	if (cookie_time_text.data == NULL) {
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
 		return NGX_OK;
 	}
 
-	/* Check Time/Timeout */
-	u_char* cookie_time_text = cookie.data + (32 + 1);
-	time_t cookie_time = ngx_atotm(cookie_time_text, 10);
+	ngx_cpystrn(cookie_time_text.data, cookie.data + 32 + 1, cookie_time_text.len + 1);
+	cookie_time_text.data[cookie_time_text.len] = '\0';
+	time_t cookie_time = ngx_atotm(cookie_time_text.data, cookie_time_text.len);
 	if (cookie_time == NGX_ERROR) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: invalid timestamp in cookie");
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: invalid timestamp in cookie");
 		return NGX_OK;
 	}
 	time_t local_time = time(NULL);
-
 	if (local_time - cookie_time > check_cookie_conf->timeout) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: Expired %i", local_time - cookie_time);
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: Expired %i", local_time - cookie_time);
 		return NGX_OK;
 	}
 
+	/* Find last "-" in cookie */
+	size_t  cookie_uid_end = 0;
+	for(cookie_uid_end = cookie.len - 1; cookie_uid_end > 0  ; cookie_uid_end--){
+		if (cookie.data[cookie_uid_end] == '-') {
+			break;
+		}
+	}
+	if (cookie_uid_end < (32 + 1 + cookie_time_text.len + 1)) {
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: cookie format without -REMOTE_ARRD at the end");
+		cookie_uid_end = cookie.len;
+	}
 	/* UID */
-	u_char* cookie_uid_text = cookie.data + (32 + 1 + 10 + 1);
-	/* ngx_int_t cookie_uid = ngx_atoi(cookie_uid_text, cookie.len - (32 + 1 + 10 + 1)); */
+	ngx_str_t cookie_uid_text = ngx_string("");
+	cookie_uid_text.len = cookie_uid_end - (32 + 1 + cookie_time_text.len + 1);
+	cookie_uid_text.data = ngx_pnalloc(r->pool, cookie_uid_text.len + 1);
+	if (cookie_uid_text.data == NULL) {
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
+		return NGX_OK;
+	}
+	ngx_cpystrn(cookie_uid_text.data, cookie.data + (32 + 1 + cookie_time_text.len + 1), cookie_uid_text.len + 1);
+	cookie_uid_text.data[cookie_time_text.len] = '\0';
 
 	/* IP */
 	ngx_str_t client_ip_addr = ngx_string("");
@@ -225,7 +249,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 				ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
 				return NGX_OK;
 			}
-			ngx_cpystrn(client_ip_addr.data, header[j].value.data, header[j].value.len);
+			ngx_cpystrn(client_ip_addr.data, header[j].value.data, header[j].value.len + 1);
 			client_ip_addr.len = header[j].value.len;
 			client_ip_addr.data[client_ip_addr.len] = '\0';
 			break;
@@ -237,7 +261,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
 			return NGX_OK;
 		}
-		ngx_cpystrn(client_ip_addr.data, r->connection->addr_text.data, r->connection->addr_text.len);
+		ngx_cpystrn(client_ip_addr.data, r->connection->addr_text.data, r->connection->addr_text.len + 1);
 		client_ip_addr.len = r->connection->addr_text.len;
 		client_ip_addr.data[client_ip_addr.len] = '\0';
 	}
@@ -253,14 +277,14 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	client_ip_addr.data[client_ip_addr.len] = '\0';
 
 	/* Create MD5 signature */
-	size_t raw_data_len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + 10 + 1 + (cookie.len - (32 + 1 + 10 + 1)) + 1;
+	size_t raw_data_len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len + 1;
 	u_char* raw_data = ngx_palloc(r->pool, raw_data_len);
 	if (raw_data == NULL) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation error - raw_data");
 		return NGX_OK;
 	}
 
-	ngx_snprintf(raw_data, raw_data_len, "%s-%s-%T-%s", client_ip_addr.data, check_cookie_conf->password.data, cookie_time, cookie_uid_text);
+	ngx_snprintf(raw_data, raw_data_len, "%s-%s-%s-%s", client_ip_addr.data, check_cookie_conf->password.data, cookie_time_text.data, cookie_uid_text.data);
 	raw_data[raw_data_len] = '\0';
 
 	/* MD5 */
@@ -279,7 +303,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	*text = '\0';
 
 	if (ngx_strncmp(hash_txt, cookie.data, 32) != 0) {
-		ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: MD5 dont match: %s <> %s", hash_txt, cookie.data);
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: MD5 dont match: %s <> %s", hash_txt, cookie.data);
 		return NGX_OK;
 	}
 
@@ -288,6 +312,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	v->valid = 1;
 	v->no_cacheable = 0;
 	v->not_found = 0;
-	ngx_log_debug(NGX_LOG_DEBUG, r->connection->log, 0, "check_cookie_module: Authorized OK - %s, MD5: %s", raw_data, hash_txt);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: Authorized OK - %s, MD5: %s", raw_data, hash_txt);
 	return NGX_OK;
 }
