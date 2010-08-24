@@ -7,7 +7,7 @@
 	}
 
 	* Cookie format:
-		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID (- REMOTE_ADDR)? )
+		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID - REMOTE_ADDR )
 */
 #include <ngx_config.h>
 #include <ngx_core.h> 
@@ -278,21 +278,33 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	client_ip_addr.data[client_ip_addr.len] = '\0';
 
 	/* Create MD5 signature */
-	size_t raw_data_len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len;
-	u_char* raw_data = ngx_palloc(r->pool, raw_data_len);
-	if (raw_data == NULL) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation error - raw_data");
+	
+	ngx_str_t raw_data = ngx_string("");
+	raw_data.len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len;
+	raw_data.data = ngx_pnalloc(r->pool, raw_data.len + 1);
+	if (raw_data.data == NULL) {
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
 		return NGX_OK;
 	}
-
-	ngx_snprintf(raw_data, raw_data_len, "%s-%s-%s-%s", client_ip_addr.data, check_cookie_conf->password.data, cookie_time_text.data, cookie_uid_text.data);
-	raw_data[raw_data_len] = '\0';
+	ngx_snprintf(raw_data.data, raw_data.len, "%s-%s-%s-%s", client_ip_addr.data, check_cookie_conf->password.data, cookie_time_text.data, cookie_uid_text.data);
+	raw_data.data[raw_data.len] = '\0';
+	
+/*
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: client_ip_addr.data: %s",client_ip_addr.data);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: client_ip_addr.len: %i",client_ip_addr.len);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text.data: %s",cookie_time_text.data);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text.len: %i",cookie_time_text.len);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_uid_text.data: %s",cookie_uid_text.data);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_uid_text.len: %i",cookie_uid_text.len);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: raw_data.data: %s",raw_data.data);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: raw_data.len: %i",raw_data.len);
+*/
 
 	/* MD5 */
 	u_char hash_bin[64], hash_txt[128];
 	MD5_CTX md5;
 	MD5Init(&md5);
-	MD5Update(&md5, raw_data, raw_data_len - 1);
+	MD5Update(&md5, raw_data.data, raw_data.len);
 	MD5Final(hash_bin, &md5);
 	static u_char hex[] = "0123456789abcdef";
 	u_char *text = hash_txt;
@@ -313,6 +325,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	v->valid = 1;
 	v->no_cacheable = 0;
 	v->not_found = 0;
-	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: Authorized OK - %s, MD5: %s", raw_data, hash_txt);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: Authorized OK - %s, MD5: %s", raw_data.data, hash_txt);
 	return NGX_OK;
 }
