@@ -213,9 +213,10 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		}
 	}
 	if (cookie_uid_end < (32 + 1 + cookie_time_text.len + 1)) {
-		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: cookie format without -REMOTE_ARRD at the end");
-		cookie_uid_end = cookie.len;
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: invalid uid in cookie");
+		return NGX_OK;
 	}
+
 	/* UID */
 	ngx_str_t cookie_uid_text = ngx_string("");
 	cookie_uid_text.len = cookie_uid_end - (32 + 1 + cookie_time_text.len + 1);
@@ -277,7 +278,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	client_ip_addr.data[client_ip_addr.len] = '\0';
 
 	/* Create MD5 signature */
-	size_t raw_data_len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len + 1;
+	size_t raw_data_len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len;
 	u_char* raw_data = ngx_palloc(r->pool, raw_data_len);
 	if (raw_data == NULL) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation error - raw_data");
