@@ -7,7 +7,7 @@
 	}
 
 	* Cookie format:
-		BASE64_ENCODE( MD5( REOMOTE_ADDR - SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID - REMOTE_ADDR )
+		BASE64_ENCODE( MD5( SECRET_KEY - TIMESTAMP - USERID) - TIMESTAMP - USERID - REMOTE_ADDR )
 */
 #include <ngx_config.h>
 #include <ngx_core.h> 
@@ -228,65 +228,65 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	ngx_cpystrn(cookie_uid_text.data, cookie.data + (32 + 1 + cookie_time_text.len + 1), cookie_uid_text.len + 1);
 	cookie_uid_text.data[cookie_time_text.len] = '\0';
 
-	/* IP */
-	ngx_str_t client_ip_addr = ngx_string("");
-
-	/* check for trusted proxy */
-	ngx_list_part_t *part;
-	ngx_table_elt_t *header;
-	ngx_uint_t j;
-	part = &r->headers_in.headers.part;
-	header = part->elts;
-	for (j = 0; /* void */; j++) {
-		if (j >= part->nelts) {
-			if (part->next == NULL) break;
-			part = part->next;
-			header = part->elts;
-			j = 0;
-		}
-		if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
-			client_ip_addr.data = ngx_pnalloc(r->pool, header[j].value.len + 1);
-			if (client_ip_addr.data == NULL) {
-				ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
-				return NGX_OK;
-			}
-			ngx_cpystrn(client_ip_addr.data, header[j].value.data, header[j].value.len + 1);
-			client_ip_addr.len = header[j].value.len;
-			client_ip_addr.data[client_ip_addr.len] = '\0';
-			break;
-		}
-	}
-	if(client_ip_addr.len == 0){
-		client_ip_addr.data = ngx_pnalloc(r->pool, r->connection->addr_text.len + 1);
-		if (client_ip_addr.data == NULL) {
-			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
-			return NGX_OK;
-		}
-		ngx_cpystrn(client_ip_addr.data, r->connection->addr_text.data, r->connection->addr_text.len + 1);
-		client_ip_addr.len = r->connection->addr_text.len;
-		client_ip_addr.data[client_ip_addr.len] = '\0';
-	}
-
-	/* Remove last octet from ip  */
-	ngx_int_t  ip_i;
-	for(ip_i = client_ip_addr.len - 1; ip_i > 0  ; ip_i--){
-		if (client_ip_addr.data[ip_i] == '.') {
-			client_ip_addr.len = ip_i;
-			break;
-		}
-	}
-	client_ip_addr.data[client_ip_addr.len] = '\0';
+	// /* IP */
+	// ngx_str_t client_ip_addr = ngx_string("");
+	// 
+	// /* check for trusted proxy */
+	// ngx_list_part_t *part;
+	// ngx_table_elt_t *header;
+	// ngx_uint_t j;
+	// part = &r->headers_in.headers.part;
+	// header = part->elts;
+	// for (j = 0; /* void */; j++) {
+	// 	if (j >= part->nelts) {
+	// 		if (part->next == NULL) break;
+	// 		part = part->next;
+	// 		header = part->elts;
+	// 		j = 0;
+	// 	}
+	// 	if (ngx_strncmp(header[j].key.data, check_cookie_conf->x_header.data, check_cookie_conf->x_header.len) == 0) {
+	// 		client_ip_addr.data = ngx_pnalloc(r->pool, header[j].value.len + 1);
+	// 		if (client_ip_addr.data == NULL) {
+	// 			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
+	// 			return NGX_OK;
+	// 		}
+	// 		ngx_cpystrn(client_ip_addr.data, header[j].value.data, header[j].value.len + 1);
+	// 		client_ip_addr.len = header[j].value.len;
+	// 		client_ip_addr.data[client_ip_addr.len] = '\0';
+	// 		break;
+	// 	}
+	// }
+	// if(client_ip_addr.len == 0){
+	// 	client_ip_addr.data = ngx_pnalloc(r->pool, r->connection->addr_text.len + 1);
+	// 	if (client_ip_addr.data == NULL) {
+	// 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
+	// 		return NGX_OK;
+	// 	}
+	// 	ngx_cpystrn(client_ip_addr.data, r->connection->addr_text.data, r->connection->addr_text.len + 1);
+	// 	client_ip_addr.len = r->connection->addr_text.len;
+	// 	client_ip_addr.data[client_ip_addr.len] = '\0';
+	// }
+	// 
+	// /* Remove last octet from ip  */
+	// ngx_int_t  ip_i;
+	// for(ip_i = client_ip_addr.len - 1; ip_i > 0  ; ip_i--){
+	// 	if (client_ip_addr.data[ip_i] == '.') {
+	// 		client_ip_addr.len = ip_i;
+	// 		break;
+	// 	}
+	// }
+	// client_ip_addr.data[client_ip_addr.len] = '\0';
 
 	/* Create MD5 signature */
 	
 	ngx_str_t raw_data = ngx_string("");
-	raw_data.len = client_ip_addr.len + 1 + check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len;
+	raw_data.len = check_cookie_conf->password.len + 1 + cookie_time_text.len + 1 + cookie_uid_text.len;
 	raw_data.data = ngx_pnalloc(r->pool, raw_data.len + 1);
 	if (raw_data.data == NULL) {
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_cookie_module: allocation failed");
 		return NGX_OK;
 	}
-	ngx_snprintf(raw_data.data, raw_data.len, "%s-%s-%s-%s", client_ip_addr.data, check_cookie_conf->password.data, cookie_time_text.data, cookie_uid_text.data);
+	ngx_snprintf(raw_data.data, raw_data.len, "%s-%s-%s", check_cookie_conf->password.data, cookie_time_text.data, cookie_uid_text.data);
 	raw_data.data[raw_data.len] = '\0';
 	
 /*
