@@ -183,7 +183,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	}
 	
 
-/* Check Time/Timeout */
+	/* Check Time/Timeout */
 	ngx_str_t cookie_time_text = ngx_string("");
 	cookie_time_text.len = 10; //Timestamp
 	cookie_time_text.data = ngx_pnalloc(r->pool, cookie_time_text.len + 1);
@@ -226,7 +226,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 	ngx_cpystrn(cookie_uid_text.data, cookie.data + (32 + 1 + cookie_time_text.len + 1), cookie_uid_text.len + 1);
-	cookie_uid_text.data[cookie_time_text.len] = '\0';
+	cookie_uid_text.data[cookie_uid_text.len] = '\0';
 
 	// /* IP */
 	// ngx_str_t client_ip_addr = ngx_string("");
@@ -292,6 +292,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 /*
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: client_ip_addr.data: %s",client_ip_addr.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: client_ip_addr.len: %i",client_ip_addr.len);
+
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text.data: %s",cookie_time_text.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text.len: %i",cookie_time_text.len);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_uid_text.data: %s",cookie_uid_text.data);
@@ -299,7 +300,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: raw_data.data: %s",raw_data.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: raw_data.len: %i",raw_data.len);
 */
-
 	/* MD5 */
 	u_char hash_bin[64], hash_txt[128];
 	MD5_CTX md5;
