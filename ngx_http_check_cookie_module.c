@@ -143,7 +143,12 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	ngx_str_t base64_encoded_cookie;
 	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &base64_encoded_cookie) == NGX_DECLINED) {
 		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
-		return NGX_OK;
+
+		/* Use URI argument instead of the cookie */
+		if (ngx_http_arg(r, check_cookie_conf->name.data, check_cookie_conf->name.len, &base64_encoded_cookie) != NGX_OK) {
+			ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: argument \"%V\" not found", &check_cookie_conf->name);
+			return NGX_OK;
+		}
 	}
 
 	/* Unescape cookie */
@@ -181,7 +186,6 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: invalid cookie format: \"%s\"", cookie.data);
 		return NGX_OK;
 	}
-	
 
 	/* Check Time/Timeout */
 	ngx_str_t cookie_time_text = ngx_string("");
@@ -288,18 +292,19 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	}
 	ngx_snprintf(raw_data.data, raw_data.len, "%s-%s-%s", check_cookie_conf->password.data, cookie_time_text.data, cookie_uid_text.data);
 	raw_data.data[raw_data.len] = '\0';
-	
+
 /*
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: client_ip_addr.data: %s",client_ip_addr.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: client_ip_addr.len: %i",client_ip_addr.len);
-
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text.data: %s",cookie_time_text.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text.len: %i",cookie_time_text.len);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_time_text offset: %i",(local_time - cookie_time));
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_uid_text.data: %s",cookie_uid_text.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: cookie_uid_text.len: %i",cookie_uid_text.len);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: raw_data.data: %s",raw_data.data);
 	ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "DEBUG: raw_data.len: %i",raw_data.len);
 */
+
 	/* MD5 */
 	u_char hash_bin[64], hash_txt[128];
 	MD5_CTX md5;
@@ -320,7 +325,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 		return NGX_OK;
 	}
 
-	v->data = (u_char *) hash_txt;
+	v->data = cookie_uid_text.data;
 	v->len = ngx_strlen( v->data );
 	v->valid = 1;
 	v->no_cacheable = 0;
