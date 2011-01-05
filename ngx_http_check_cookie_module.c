@@ -143,12 +143,7 @@ static ngx_int_t ngx_http_check_cookie_variable(ngx_http_request_t *r, ngx_http_
 	ngx_str_t base64_encoded_cookie;
 	if (ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &check_cookie_conf->name, &base64_encoded_cookie) == NGX_DECLINED) {
 		ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: cookie \"%V\" not found", &check_cookie_conf->name);
-
-		/* Use URI argument instead of the cookie */
-		if (ngx_http_arg(r, check_cookie_conf->name.data, check_cookie_conf->name.len, &base64_encoded_cookie) != NGX_OK) {
-			ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "check_cookie_module: argument \"%V\" not found", &check_cookie_conf->name);
-			return NGX_OK;
-		}
+		return NGX_OK;
 	}
 
 	/* Unescape cookie */
